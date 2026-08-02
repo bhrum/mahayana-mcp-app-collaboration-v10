@@ -1,0 +1,56 @@
+name: Create Upstream Draft PR
+on:
+  workflow_dispatch:
+    inputs:
+      head:
+        description: Fork branch in owner:branch form
+        required: true
+        type: string
+      issue_number:
+        description: Linked upstream issue number
+        required: true
+        type: string
+      title:
+        description: Pull request title
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  create:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create user-confirmed Draft Pull Request
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const inputs = context.payload.inputs || {};
+            const head = String(inputs.head || '');
+            const issueNumber = String(inputs.issue_number || '');
+            const title = String(inputs.title || '');
+            if (!head || !issueNumber || !title) core.setFailed('head, issue_number, and title are required');
+            const body = [
+              'Closes #' + issueNumber,
+              '',
+              'AI-assisted change created in the user fork after explicit confirmation.',
+              '',
+              '## Required report',
+              '- Reproduction and root cause are documented in the linked Issue.',
+              '- Untrusted pull_request CI runs with read-only contents and no secrets.',
+              '- Tool Contract, permissions, and artifact impact are reviewed before merge.',
+              '- Merge does not publish; a separate trusted release is required.'
+            ].join('\n');
+            const response = await github.rest.pulls.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              head,
+              base: 'main',
+              title,
+              body,
+              draft: true,
+              maintainer_can_modify: false
+            });
+            core.summary.addHeading('Draft PR created').addLink(response.data.html_url, response.data.html_url).write();
